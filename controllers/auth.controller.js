@@ -1,14 +1,13 @@
 const { Op } = require('sequelize');
 const userData = require('../models/user.model.js');
 
+// create-admin
 exports.createUser = async (req, res) => {
   try {
     const { name, user_type, email, password } = req.body;
-
     const existingUser = await userData.findOne({
       where: { email: email }
     });
-
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email already exists' });
     } else {
@@ -18,7 +17,6 @@ exports.createUser = async (req, res) => {
         email: email,
         password: password,
       });
-
       return res.status(201).json({ message: 'User created successfully', user: newUser });
     }
   } catch (error) {
@@ -26,3 +24,18 @@ exports.createUser = async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 };
+
+// list- admins
+exports.listUser = async (req, res) => {
+  try {
+    if (user_type == "superadmin") {
+      const userList = await userData.findAll({});
+      return res.status(201).json({ message: 'User created successfully', userlist: userList });
+    } else {
+      return res.status(201).json({ message: 'Sorry you have not Authorized persion' });
+    }
+  } catch (error) {
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+}
+
