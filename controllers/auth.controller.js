@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 const userData = require('../models/user.model.js');
 const sequelize = require('../config/sequelize');
+const httpstatus = require("../utils/httpstatus");
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 require("dotenv").config();
@@ -24,7 +25,12 @@ exports.createUser = async (req, res) => {
         email: email,
         password: hashedPassword,
       });
-      return res.status(201).json({ message: 'User created successfully', user: newUser });
+      let successResponse = httpstatus.successResponse({
+        error_code: 0,
+        message: 'User created successfully',
+      })
+     
+      return  res.send(successResponse);
     }
   } catch (error) {
     console.error(error);
@@ -60,7 +66,9 @@ return res.status(201).json({message: 'User created successfully', token: token}
 // list- admins
 exports.listUser = async (req, res) => {
   try {
+    const{ user_type }= req.body;
     if (user_type == "superadmin") {
+      console.log("user_type",user_type)
       const userList = await userData.findAll({});
       return res.status(201).json({ message: 'User created successfully', userlist: userList });
     } else {

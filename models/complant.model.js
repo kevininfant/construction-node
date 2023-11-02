@@ -1,9 +1,7 @@
-'use strict';
-
-module.exports = {
-  async up (queryInterface, Sequelize) {
-    await queryInterface.createTable('usercomplents', {
-      id: {
+const {Sequelize,DataTypes} = require('sequelize');
+const sequelize = require('../config/sequelize');
+const  User = sequelize.define('usercomplents',{
+    id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
@@ -53,9 +51,4 @@ module.exports = {
         allowNull: false,
       },
     });
-  },
-  async down (queryInterface, Sequelize) {
-    await queryInterface.dropTable('usercomplents');
-  }
-};
-
+module.exports = User;
