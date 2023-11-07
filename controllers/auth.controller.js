@@ -2,7 +2,7 @@ const { Op } = require('sequelize');
 const userData = require('../models/user.model.js');
 const sequelize = require('../config/sequelize');
 const httpstatus = require("../utils/httpstatus");
-const bcrypt = require('bcrypt');
+var bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 require("dotenv").config();
 const secretKey = process.env.SECRET_KEY;
