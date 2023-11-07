@@ -5,7 +5,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser'); // Removed unnecessary space
 const fs = require('fs');
 const path = require('path'); // Import the 'path' module
-const PORT = process.env.API_PORT || 3000; // Default to port 3000 if API_PORT is not defined in your .env file
+const PORT = process.env.API_PORT || 3307; // Default to port 3000 if API_PORT is not defined in your .env file
 
 app.use(express.json());
 app.use(cors());
