@@ -15,10 +15,11 @@ const  ComplaintStatus = sequelize.define('complaintsstatus',{
     type: Sequelize.INTEGER,
     allowNull: false,
   },
-  is_active: {
-    type: Sequelize.STRING,
-    allowNull: false,
-  },
+      is_active: {
+        type: Sequelize.STRING,
+        allowNull: true,
+        defaultValue:1
+      },
   createdAt: {
     type: Sequelize.DATE,
     allowNull: false,
