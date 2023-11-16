@@ -41,7 +41,8 @@ const  User = sequelize.define('usercomplaints',{
       },
       is_active: {
         type: Sequelize.STRING,
-        allowNull: false,
+        allowNull: true,
+        defaultValue:1
       },
       image_proof:{
         type: Sequelize.STRING,
