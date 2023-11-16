@@ -1,78 +1,153 @@
-const { Op } = require('sequelize');
-const userData = require('../models/user.model.js');
-const UserComplents = require('../models/complant.model.js');
-const httpstatus = require("../utilities/httpstatus");
+const UserComplaints = require("../models/complaint.model.js");
+const UserComplaintsStatus = require("../models/complaintstatus.model.js");
+const Status = require("../models/status.model.js");
+const httpstatus = require("../utils/httpstatus");
 require("dotenv").config();
-// create-complaints 
-exports.UserComplentsCreate = async (req, res) => {
+// create-complaints
+exports.UserComplaintsCreate = async (req, res) => {
+    const defaultStatus = "process";
+    console.log("req.body",req.body);
     try {
-        const {
-            name,
-            email,
-            mobile,
-            address,
-            user_type,
-            complent_type,
-            complentDetails,
-        } = req.body;
-
-        const newComplaints = await UserComplents.create({
-            name,
-            email,
-            mobile,
-            address,
-            user_type,
-            complent_type,
-            complentDetails,
+      const {
+        name,
+        email,
+        mobile,
+        address,
+        user_type,
+        complaint_type,
+        complaintDetails,
+      } = req.body;
+  
+      const newComplaint = await UserComplents.create({
+        name,
+        email,
+        mobile,
+        address,
+        user_type,
+        complaint_type,
+        complaintDetails,
+      });
+  
+      if (!newComplaint) {
+        let errorResponse = httpstatus.errorResponse({
+          error_code: 1,
+          message: "Failed to create complaint",
         });
-
-        if (newComplaints) {
-            let successResponse = httpstatus.successResponse({
-                error_code: 0,
-                message: 'Complaint created successfully',
-            });
-
-            return res.status(201).send(successResponse);
-        } else {
-            let errorResponse = httpstatus.errorResponse({
-                error_code: 1,
-                message: 'Failed to create complaint',
-            });
-
-            return res.status(500).send(errorResponse);
+  
+        return res.status(500).send(errorResponse);
+      }
+  
+      const complaint_id = newComplaint.complaint_id;
+  
+      // Fetch the status_id for the default status
+      const status = await Status.findOne({
+        where: { status_name: defaultStatus },
+        raw: true,
+      });
+  
+      // Check if status is defined and has status_id
+      if (!status || !status.status_id) {
+        throw new Error("Failed to fetch status");
+      }
+  
+      await sequelize.transaction(async (t) => {
+        const newStatus = await UserComplentsStatus.create(
+          {
+            complaint_id,
+            status_id: status.status_id,
+            is_active: 1,
+          },
+          { transaction: t }
+        );
+  
+        // Check if newStatus is defined
+        if (!newStatus) {
+          throw new Error("Failed to create complaint status");
         }
+      });
+  
+      let successResponse = httpstatus.successResponse({
+        error_code: 0,
+        message: "Complaint created successfully",
+      });
+  
+      return res.status(201).send(successResponse);
     } catch (error) {
-        console.error(error);
-        return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+      console.error(error);
+      return res
+        .status(500)
+        .json({ message: "Internal Server Error", error: error.message });
     }
-}
+  };
+  
+  
 
 // List-complaints
-exports.listComplaint = async(req,res) =>{
-    try {
-        const {user_type} = req.body;
-        if (user_type == "superadmin" || user_type == "subadmin") {
-            var complaintList = await UserComplents.findAll({
-                where :{
-                    is_active : 1
-                }
-            })
-            let successResponse = httpstatus.successResponse({
-                error_code: 0,
-                complaintList :complaintList,
-                message: 'ComplaintList fetch successfully',
-            });
-    
-            return res.status(201).send(successResponse);
-        } else {
-            let errorResponse = httpstatus.errorResponse({
-                error_code: 1,
-                message: 'Sorry you have not Authorized persion',
-            });
-            return res.status(201).send(errorResponse);
-        } 
-    } catch (error) {
-        console.error(error);
-        return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+exports.listComplaint = async (req, res) => {
+  try {
+    const { user_type } = req.body;
+
+    if (user_type === "superadmin" || user_type === "subadmin") {
+      const complaintList = await UserComplents.findAll({
+        where: {
+          is_active: 1,
+        },
+        raw: true,
+      });
+
+      const complaintArr = [];
+
+      for (const complaintData of complaintList) {
+        const complaintstatus = await UserComplentsStatus.findOne({
+          where: {
+            complaint_id: complaintData.complaint_id,
+            is_active: 1,
+          },
+          raw: true,
+        });
+
+        const statusType = await Status.findOne({
+          where: {
+            complaint_id: complaintstatus.status_id,
+            is_active: 1,
+          },
+          raw: true,
+        });
+
+        complaintArr.push({
+          complaint_id: complaintData.complaint_id,
+          name: complaintData.name,
+          email: complaintData.email,
+          mobile: complaintData.mobile,
+          address: complaintData.address,
+          user_type: complaintData.user_type,
+          complent_type: complaintData.complent_type,
+          complentDetails: complaintData.complentDetails,
+          status_id: complaintstatus.status_id,
+          status_type: statusType.status_name,
+          is_active: complaintData.is_active,
+        });
+      }
+
+      let successResponse = httpstatus.successResponse({
+        error_code: 0,
+        complaintList: complaintArr,
+        message: "ComplaintList fetch successfully",
+      });
+
+      return res.status(200).send(successResponse);
+    } else {
+      let errorResponse = httpstatus.errorResponse({
+        error_code: 1,
+        message: "Sorry, you are not an authorized person.",
+      });
+
+      return res.status(403).send(errorResponse);
     }
-}
+  } catch (error) {
+    console.error(error);
+    return res
+      .status(500)
+      .json({ message: "Internal Server Error", error: error.message });
+  }
+};
