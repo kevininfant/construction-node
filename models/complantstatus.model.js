@@ -1,18 +1,15 @@
 const {Sequelize,DataTypes} = require('sequelize');
 const sequelize = require('../config/sequelize');
-const  ComplaintStatus = sequelize.define('complentsstatus',{
+const  ComplaintStatus = sequelize.define('complaintsstatus',{
   id: {
     type: Sequelize.INTEGER,
     primaryKey: true,
     autoIncrement: true,
   },
   complaint_id: {
-    type: Sequelize.INTEGER,
-    allowNull: false,
-  },
-  complaint_status: {
-    type: Sequelize.STRING,
-    allowNull: false,
+    type: Sequelize.DataTypes.UUID,
+    primaryKey: true,
+    defaultValue: Sequelize.UUIDV4,
   },
   status_id: {
     type: Sequelize.INTEGER,
