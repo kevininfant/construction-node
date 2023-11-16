@@ -2,11 +2,16 @@
 
 module.exports = {
   async up (queryInterface, Sequelize) {
-    await queryInterface.createTable('usercomplents', {
+    await queryInterface.createTable('usercomplaints', {
       id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
+      },
+      complaint_id: {
+        type: Sequelize.DataTypes.UUID,
+        defaultValue: Sequelize.UUIDV4,
+        primaryKey: true,
       },
       name: {
         type: Sequelize.STRING,
@@ -28,11 +33,11 @@ module.exports = {
         type: Sequelize.STRING,
         allowNull: false,
       },
-      complent_type: {
+      complaint_type: {
         type: Sequelize.STRING,
         allowNull: false,
       },
-      complentDetails: {
+      complaintDetails: {
         type: Sequelize.STRING,
         allowNull: false,
       },
@@ -42,7 +47,7 @@ module.exports = {
       },
       image_proof:{
         type: Sequelize.STRING,
-        allowNull: false,
+       
       },
       createdAt: {
         type: Sequelize.DATE,
@@ -55,7 +60,7 @@ module.exports = {
     });
   },
   async down (queryInterface, Sequelize) {
-    await queryInterface.dropTable('usercomplents');
+    await queryInterface.dropTable('usercomplaints');
   }
 };
 
