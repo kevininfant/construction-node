@@ -1,10 +1,15 @@
 const {Sequelize,DataTypes} = require('sequelize');
 const sequelize = require('../config/sequelize');
-const  User = sequelize.define('usercomplents',{
+const  User = sequelize.define('usercomplaints',{
     id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
         autoIncrement: true,
+      },
+      complaint_id: {
+        type: Sequelize.DataTypes.UUID,
+        primaryKey: true,
+        defaultValue: Sequelize.UUIDV4,
       },
       name: {
         type: Sequelize.STRING,
@@ -26,11 +31,11 @@ const  User = sequelize.define('usercomplents',{
         type: Sequelize.STRING,
         allowNull: false,
       },
-      complent_type: {
+      complaint_type: {
         type: Sequelize.STRING,
         allowNull: false,
-      },
-      complentDetails: {
+      }, 
+      complaintDetails: {
         type: Sequelize.STRING,
         allowNull: false,
       },
@@ -40,7 +45,7 @@ const  User = sequelize.define('usercomplents',{
       },
       image_proof:{
         type: Sequelize.STRING,
-        allowNull: false,
+        
       },
       createdAt: {
         type: Sequelize.DATE,
