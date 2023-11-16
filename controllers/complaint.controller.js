@@ -18,7 +18,7 @@ exports.UserComplaintsCreate = async (req, res) => {
         complaintDetails,
       } = req.body;
   
-      const newComplaint = await UserComplents.create({
+      const newComplaint = await UserComplaints.create({
         name,
         email,
         mobile,
