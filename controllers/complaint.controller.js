@@ -1,5 +1,6 @@
+const Sequelize = require('sequelize');
 const UserComplaints = require("../models/complaint.model.js");
-const UserComplaintsStatus = require("../models/complaintstatus.model.js");
+const Complaintsstatus = require("../models/complaintstatus.model.js");
 const Status = require("../models/status.model.js");
 const httpstatus = require("../utils/httpstatus");
 require("dotenv").config();
@@ -49,29 +50,33 @@ exports.UserComplaintsCreate = async (req, res) => {
       if (!status || !status.status_id) {
         throw new Error("Failed to fetch status");
       }
-  
-      await sequelize.transaction(async (t) => {
-        const newStatus = await UserComplentsStatus.create(
-          {
-            complaint_id,
-            status_id: status.status_id,
-            is_active: 1,
-          },
-          { transaction: t }
-        );
+      try {
+        const newStatus = await Complaintsstatus.create({
+          complaint_id,
+          status_id: status.status_id,
+          is_active: 1,
+        });
   
         // Check if newStatus is defined
         if (!newStatus) {
           throw new Error("Failed to create complaint status");
         }
-      });
   
-      let successResponse = httpstatus.successResponse({
-        error_code: 0,
-        message: "Complaint created successfully",
-      });
+        let successResponse = httpstatus.successResponse({
+          error_code: 0,
+          message: "Complaint created successfully",
+        });
   
-      return res.status(201).send(successResponse);
+        return res.status(201).send(successResponse);
+      } catch (error) {
+        console.error(error);
+        let errorResponse = httpstatus.errorResponse({
+          error_code: 1,
+          message: "Failed to create complaint status",
+        });
+  
+        return res.status(500).send(errorResponse);
+      }
     } catch (error) {
       console.error(error);
       return res
@@ -88,7 +93,7 @@ exports.listComplaint = async (req, res) => {
     const { user_type } = req.body;
 
     if (user_type === "superadmin" || user_type === "subadmin") {
-      const complaintList = await UserComplents.findAll({
+      const complaintList = await UserComplaints.findAll({
         where: {
           is_active: 1,
         },
@@ -98,17 +103,17 @@ exports.listComplaint = async (req, res) => {
       const complaintArr = [];
 
       for (const complaintData of complaintList) {
-        const complaintstatus = await UserComplentsStatus.findOne({
+        const complaintstatus = await Complaintsstatus.findOne({
           where: {
             complaint_id: complaintData.complaint_id,
             is_active: 1,
           },
           raw: true,
         });
-
+console.log("complaintstatus",complaintstatus);
         const statusType = await Status.findOne({
           where: {
-            complaint_id: complaintstatus.status_id,
+            status_id: complaintstatus.status_id,
             is_active: 1,
           },
           raw: true,
