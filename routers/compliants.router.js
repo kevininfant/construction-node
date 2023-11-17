@@ -6,8 +6,11 @@ const complaintsController = require('../controllers/complaint.controller');
 
 // auth
 router.post('/createcomplaints',complaintsController.UserComplaintsCreate);
-router.post('/complaintslist',complaintsController.listComplaint);
-router.post('/userlist',authMiddleware,authController.listUser);
+router.post('/complaintslist',authMiddleware,complaintsController.listComplaint);
+router.post('/complaintDetails',authMiddleware,complaintsController.complaintDetails);
+router.post('/complaintstatuschange',authMiddleware,complaintsController.statusChange);
+router.post('/complainttracking',complaintsController.complaintTracking);
+
 
 
 module.exports = router; 
