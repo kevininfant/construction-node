@@ -1,6 +1,6 @@
 const {Sequelize,DataTypes} = require('sequelize');
 const sequelize = require('../config/sequelize');
-const  ComplaintStatus = sequelize.define('complaintsstatus',{
+const  ComplaintStatus = sequelize.define('complaintsstatuses',{
   id: {
     type: Sequelize.INTEGER,
     primaryKey: true,
@@ -15,11 +15,11 @@ const  ComplaintStatus = sequelize.define('complaintsstatus',{
     type: Sequelize.INTEGER,
     allowNull: false,
   },
-      is_active: {
-        type: Sequelize.STRING,
-        allowNull: true,
-        defaultValue:1
-      },
+  is_active: {
+    type: Sequelize.STRING,
+    allowNull: true,
+    defaultValue:1
+  },
   createdAt: {
     type: Sequelize.DATE,
     allowNull: false,
