@@ -43,7 +43,8 @@ exports.login = async (req,res) =>{
     const {  email, password } = req.body;
     console.log("req.body",req.body);
     const user = await userData.findOne({
-  where: { email: email }
+  where: { email: email },
+  raw :true
 }); 
 if (!user) {
   return res.status(401).json({ message: 'Authentication failed: User not found' });
@@ -56,7 +57,7 @@ if (!passwordMatch) {
 const token = jwt.sign({ userId: user.id },secretKey, {
   expiresIn: '1h', // Set the token expiration time as needed
 });
-return res.status(201).json({message: 'User created successfully', token: token})
+return res.status(201).json({message: 'User created successfully', token: token ,userDetails : user})
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Internal Server Error' });
