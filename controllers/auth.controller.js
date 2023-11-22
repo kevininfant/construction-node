@@ -57,7 +57,13 @@ if (!passwordMatch) {
 const token = jwt.sign({ userId: user.id },secretKey, {
   expiresIn: '1h', // Set the token expiration time as needed
 });
-return res.status(201).json({message: 'User created successfully', token: token ,userDetails : user})
+let successResponse = httpstatus.successResponse({
+  token: token ,
+  userDetails : user,
+  error_code: 0,
+  message: 'User login successfully',
+})
+return  res.send(successResponse);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Internal Server Error' });
