@@ -1,6 +1,8 @@
 const Sequelize = require('sequelize');
 const UserComplaints = require("../models/complaint.model.js");
+const userData = require('../models/user.model.js');
 const Complaintsstatus = require("../models/complaintstatus.model.js");
+const ComplaintsAssign = require("../models/assigncomplaint.model.js");
 const Status = require("../models/status.model.js");
 const httpstatus = require("../utils/httpstatus");
 require("dotenv").config();
@@ -92,7 +94,6 @@ exports.UserComplaintsCreate = async (req, res) => {
 exports.listComplaint = async (req, res) => {
   try {
     const { user_type } = req.body;
-
     if (user_type === "superadmin" || user_type === "subadmin") {
       const complaintList = await UserComplaints.findAll({
         where: {
@@ -156,6 +157,45 @@ exports.listComplaint = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
+
+// assign-complaint
+exports.AssignComplaints = async (req, res) => {
+  try {
+    const { complaint_id, user_id, user_type } = req.body;
+
+    if (user_type === "superadmin") {
+      const complaintsAssignStatus = await ComplaintsAssign.create({
+        complaint_id: complaint_id,
+        user_id: user_id,
+      });
+
+      if (complaintsAssignStatus) {
+        const successResponse = {
+          error_code: 0,
+          message: "ComplaintList assigned successfully",
+          data: complaintsAssignStatus, // Optionally, you can send the created record back to the client.
+        };
+        return res.status(200).json(successResponse);
+      } else {
+        const errorResponse = {
+          error_code: 1,
+          message: "Failed to assign complaint. there was an issue with the assignment.",
+        };
+        return res.status(403).json(errorResponse);
+      }
+    } else {
+      const errorResponse = {
+        error_code: 1,
+        message: "Sorry, you are not an authorized person.",
+      };
+      return res.status(403).json(errorResponse);
+    }
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error_code: 1, message: "Internal Server Error", error: error.message });
+  }
+};
+
 
 
 // Complaint-Details
