@@ -129,6 +129,7 @@ exports.listComplaint = async (req, res) => {
           },
           raw: true,
         });
+        console.log("complaintstatus",complaintstatus);
         const statusType = await Status.findOne({
           where: {
             status_id: complaintstatus.status_id,
