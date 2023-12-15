@@ -93,7 +93,7 @@ exports.UserComplaintsCreate = async (req, res) => {
 // List-complaints
 exports.listComplaint = async (req, res) => {
   try {
-    const { user_type } = req.body;
+    const { user_type,user_id } = req.body;
     if (user_type === "superadmin" || user_type === "subadmin") {
       let complaintList;
       if (user_type === "subadmin") {
@@ -192,6 +192,24 @@ exports.AssignComplaints = async (req, res) => {
     const { complaint_id, user_id, user_type } = req.body;
 
     if (user_type === "superadmin") {
+      // Check if the complaint is already assigned
+      const existingAssignment = await ComplaintsAssign.findOne({
+        where: {
+          complaint_id: complaint_id,
+          user_id: user_id,
+        },
+        raw: true,
+      });
+
+      if (existingAssignment) {
+        const errorResponse = {
+          error_code: 1,
+          message: "Complaint is already assigned to the user.",
+        };
+        return res.status(400).json(errorResponse);
+      }
+
+      // If not assigned, create a new assignment
       const complaintsAssignStatus = await ComplaintsAssign.create({
         complaint_id: complaint_id,
         user_id: user_id,
@@ -200,14 +218,14 @@ exports.AssignComplaints = async (req, res) => {
       if (complaintsAssignStatus) {
         const successResponse = {
           error_code: 0,
-          message: "ComplaintList assigned successfully",
+          message: "Complaint assigned successfully",
           data: complaintsAssignStatus, // Optionally, you can send the created record back to the client.
         };
         return res.status(200).json(successResponse);
       } else {
         const errorResponse = {
           error_code: 1,
-          message: "Failed to assign complaint. there was an issue with the assignment.",
+          message: "Failed to assign complaint. There was an issue with the assignment.",
         };
         return res.status(403).json(errorResponse);
       }
@@ -223,6 +241,7 @@ exports.AssignComplaints = async (req, res) => {
     return res.status(500).json({ error_code: 1, message: "Internal Server Error", error: error.message });
   }
 };
+
 
 
 
