@@ -96,61 +96,70 @@ exports.listComplaint = async (req, res) => {
     const { user_type } = req.body;
     if (user_type === "superadmin" || user_type === "subadmin") {
       let complaintList;
-      if(user_type === "subadmin"){
+      if (user_type === "subadmin") {
         const complaintAssign = await ComplaintsAssign.findAll({
-          where :{
-            user_id :user_id,
+          where: {
+            user_id: user_id,
             is_active: 1,
           },
           raw: true,
         });
         const complaintIds = complaintAssign.map(assign => assign.complaint_id);
-         complaintList = await UserComplaints.findAll({
+        complaintList = await UserComplaints.findAll({
           where: {
-            complaint_id : complaintIds,
+            complaint_id: complaintIds,
             is_active: 1,
           },
           raw: true,
         });
-      }else{
-         complaintList = await UserComplaints.findAll({
+      } else {
+        complaintList = await UserComplaints.findAll({
           where: {
             is_active: 1,
           },
           raw: true,
         });
       }
+
       const complaintArr = [];
       for (const complaintData of complaintList) {
-        const complaintstatus = await Complaintsstatus.findOne({
-          where: {
-            complaint_id: complaintData.complaint_id,
-            is_active: 1,
-          },
-          raw: true,
-        });
-        console.log("complaintstatus",complaintstatus);
-        const statusType = await Status.findOne({
-          where: {
-            status_id: complaintstatus.status_id,
-            is_active: 1,
-          },
-          raw: true,
-        });
+        try {
+          let complaintstatus = await Complaintsstatus.findOne({
+            where: {
+              complaint_id: complaintData.complaint_id,
+              is_active: 1,
+            },
+            raw: true,
+          });
 
-        complaintArr.push({
-          complaint_id: complaintData.complaint_id,
-          name: complaintData.name,
-          email: complaintData.email,
-          mobile: complaintData.mobile,
-          address: complaintData.address,
-          user_type: complaintData.user_type,
-          complent_type: complaintData.complent_type,
-          complentDetails: complaintData.complentDetails,
-          status_id: complaintstatus.status_id,
-          status_type: statusType.status_name,
-          is_active: complaintData.is_active,
-        });
+          if (!complaintstatus) {
+            throw new Error("Complaint status not found");
+          }
+
+          const statusType = await Status.findOne({
+            where: {
+              status_id: complaintstatus.status_id,
+              is_active: 1,
+            },
+            raw: true,
+          });
+
+          complaintArr.push({
+            complaint_id: complaintData.complaint_id,
+            name: complaintData.name,
+            email: complaintData.email,
+            mobile: complaintData.mobile,
+            address: complaintData.address,
+            user_type: complaintData.user_type,
+            complent_type: complaintData.complent_type,
+            complentDetails: complaintData.complentDetails,
+            status_id: complaintstatus.status_id,
+            status_type: statusType.status_name,
+            is_active: complaintData.is_active,
+          });
+        } catch (error) {
+          console.error("Error fetching complaint status:", error.message);
+        }
       }
 
       let successResponse = httpstatus.successResponse({
@@ -175,6 +184,7 @@ exports.listComplaint = async (req, res) => {
       .json({ message: "Internal Server Error", error: error.message });
   }
 };
+
 
 // assign-complaint
 exports.AssignComplaints = async (req, res) => {
