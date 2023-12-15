@@ -95,15 +95,32 @@ exports.listComplaint = async (req, res) => {
   try {
     const { user_type } = req.body;
     if (user_type === "superadmin" || user_type === "subadmin") {
-      const complaintList = await UserComplaints.findAll({
-        where: {
-          is_active: 1,
-        },
-        raw: true,
-      });
-
+      let complaintList;
+      if(user_type === "subadmin"){
+        const complaintAssign = await ComplaintsAssign.findAll({
+          where :{
+            user_id :user_id,
+            is_active: 1,
+          },
+          raw: true,
+        });
+        const complaintIds = complaintAssign.map(assign => assign.complaint_id);
+         complaintList = await UserComplaints.findAll({
+          where: {
+            complaint_id : complaintIds,
+            is_active: 1,
+          },
+          raw: true,
+        });
+      }else{
+         complaintList = await UserComplaints.findAll({
+          where: {
+            is_active: 1,
+          },
+          raw: true,
+        });
+      }
       const complaintArr = [];
-
       for (const complaintData of complaintList) {
         const complaintstatus = await Complaintsstatus.findOne({
           where: {
