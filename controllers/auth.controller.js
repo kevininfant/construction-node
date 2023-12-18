@@ -1,25 +1,26 @@
 const { Op } = require('sequelize');
-const userData = require('../models/user.model.js');
+const {User} = require("../models/index");
 const sequelize = require('../config/sequelize');
 const httpstatus = require("../utils/httpstatus");
-var bcrypt = require('bcryptjs');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 require("dotenv").config();
 const secretKey = process.env.SECRET_KEY;
-
+User
 // create-admin
 exports.createUser = async (req, res) => {
   try {
-    const { name, user_type, email, password } = req.body;
+    const { login_type,name, user_type, email, password } = req.body;
     console.log("req.body",req.body);
-    const existingUser = await userData.findOne({
+    if (login_type == "superadmin") {
+    const existingUser = await User.findOne({
   where: { email: email }
 });
     if (existingUser) {
       return res.status(400).json({ message: 'User with this email already exists' });
     } else {
       const hashedPassword = await bcrypt.hash(password, 10);
-      const newUser = await userData.create({
+      const newUser = await User.create({
         name: name,
         user_type: user_type,
         email: email,
@@ -29,9 +30,11 @@ exports.createUser = async (req, res) => {
         error_code: 0,
         message: 'User created successfully',
       })
-     
       return  res.send(successResponse);
     }
+  } else {
+    return res.status(201).json({ message: 'Sorry you have not Authorized persion' });
+  }
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Internal Server Error' });
@@ -42,9 +45,8 @@ exports.login = async (req,res) =>{
   try {
     const {  email, password } = req.body;
     console.log("req.body",req.body);
-    const user = await userData.findOne({
-  where: { email: email },
-  raw :true
+    const user = await User.findOne({
+  where: { email: email }
 }); 
 if (!user) {
   return res.status(401).json({ message: 'Authentication failed: User not found' });
@@ -57,13 +59,7 @@ if (!passwordMatch) {
 const token = jwt.sign({ userId: user.id },secretKey, {
   expiresIn: '1h', // Set the token expiration time as needed
 });
-let successResponse = httpstatus.successResponse({
-  token: token ,
-  userDetails : user,
-  error_code: 0,
-  message: 'User login successfully',
-})
-return  res.send(successResponse);
+return res.status(201).json({message: 'User created successfully', token: token})
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Internal Server Error' });
@@ -76,8 +72,8 @@ exports.listUser = async (req, res) => {
     const{ user_type }= req.body;
     if (user_type == "superadmin") {
       console.log("user_type",user_type)
-      const userList = await userData.findAll({});
-      return res.status(201).json({ message: 'User created successfully', userlist: userList });
+      const userList = await User.findAll({});
+      return res.status(201).json({ message: 'User list fetch successfully', userlist: userList });
     } else {
       return res.status(201).json({ message: 'Sorry you have not Authorized persion' });
     }

@@ -1,6 +1,6 @@
 const {Sequelize,DataTypes} = require('sequelize');
 const sequelize = require('../config/sequelize');
-const  AssignComplaints = sequelize.define('assigncomplaintdata',{
+const  AssignComplaints = sequelize.define('AssignComplaints',{
     id: {
         type: Sequelize.INTEGER,
         primaryKey: true,

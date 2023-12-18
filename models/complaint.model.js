@@ -1,6 +1,6 @@
 const {Sequelize,DataTypes} = require('sequelize');
 const sequelize = require('../config/sequelize');
-const  User = sequelize.define('usercomplaintsdata',{
+const  UserComplaint = sequelize.define('UserComplaint',{
     id: {
         type: Sequelize.INTEGER,
         primaryKey: true,
@@ -57,4 +57,4 @@ const  User = sequelize.define('usercomplaintsdata',{
         allowNull: false,
       },
     });
-module.exports = User;
+module.exports = UserComplaint;

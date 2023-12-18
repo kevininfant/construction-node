@@ -1,6 +1,6 @@
 const {Sequelize,DataTypes} = require('sequelize');
 const sequelize = require('../config/sequelize');
-const  Status = sequelize.define('status',{
+const  Status = sequelize.define('Status',{
   id: {
     type: Sequelize.INTEGER,
     primaryKey: true,

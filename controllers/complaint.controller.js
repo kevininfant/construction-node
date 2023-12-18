@@ -1,9 +1,5 @@
 const Sequelize = require('sequelize');
-const UserComplaints = require("../models/complaint.model.js");
-const userData = require('../models/user.model.js');
-const Complaintsstatus = require("../models/complaintstatus.model.js");
-const ComplaintsAssign = require("../models/assigncomplaint.model.js");
-const Status = require("../models/status.model.js");
+const {User,AssignComplaints,UserComplaint,Status,ComplaintStatus} = require("../models/index");
 const httpstatus = require("../utils/httpstatus");
 require("dotenv").config();
 // create-complaints
@@ -21,7 +17,7 @@ exports.UserComplaintsCreate = async (req, res) => {
         complaintDetails,
       } = req.body;
   
-      const newComplaint = await UserComplaints.create({
+      const newComplaint = await UserComplaint.create({
         name,
         email,
         mobile,
@@ -53,7 +49,7 @@ exports.UserComplaintsCreate = async (req, res) => {
         throw new Error("Failed to fetch status");
       }
       try {
-        const newStatus = await Complaintsstatus.create({
+        const newStatus = await ComplaintStatus.create({
           complaint_id,
           status_id: status.status_id,
           is_active: 1,
@@ -97,7 +93,7 @@ exports.listComplaint = async (req, res) => {
     if (user_type === "superadmin" || user_type === "subadmin") {
       let complaintList;
       if (user_type === "subadmin") {
-        const complaintAssign = await ComplaintsAssign.findAll({
+        const complaintAssign = await AssignComplaints.findAll({
           where: {
             user_id: user_id,
             is_active: 1,
@@ -105,7 +101,7 @@ exports.listComplaint = async (req, res) => {
           raw: true,
         });
         const complaintIds = complaintAssign.map(assign => assign.complaint_id);
-        complaintList = await UserComplaints.findAll({
+        complaintList = await UserComplaint.findAll({
           where: {
             complaint_id: complaintIds,
             is_active: 1,
@@ -113,7 +109,7 @@ exports.listComplaint = async (req, res) => {
           raw: true,
         });
       } else {
-        complaintList = await UserComplaints.findAll({
+        complaintList = await UserComplaint.findAll({
           where: {
             is_active: 1,
           },
@@ -124,7 +120,7 @@ exports.listComplaint = async (req, res) => {
       const complaintArr = [];
       for (const complaintData of complaintList) {
         try {
-          let complaintstatus = await Complaintsstatus.findOne({
+          let complaintstatus = await ComplaintStatus.findOne({
             where: {
               complaint_id: complaintData.complaint_id,
               is_active: 1,
@@ -193,7 +189,7 @@ exports.AssignComplaints = async (req, res) => {
 
     if (user_type === "superadmin") {
       // Check if the complaint is already assigned
-      const existingAssignment = await ComplaintsAssign.findOne({
+      const existingAssignment = await AssignComplaints.findOne({
         where: {
           complaint_id: complaint_id,
           user_id: user_id,
@@ -210,7 +206,7 @@ exports.AssignComplaints = async (req, res) => {
       }
 
       // If not assigned, create a new assignment
-      const complaintsAssignStatus = await ComplaintsAssign.create({
+      const complaintsAssignStatus = await AssignComplaints.create({
         complaint_id: complaint_id,
         user_id: user_id,
       });
@@ -252,7 +248,7 @@ exports.complaintDetails = async (req, res) => {
     const { complaint_id, user_type } = req.body;
 
     if (user_type === "superadmin" || user_type === "subadmin") {
-      const complaintDetail = await UserComplaints.findOne({
+      const complaintDetail = await UserComplaint.findOne({
         where: {
           complaint_id,
           is_active: 1,
@@ -270,7 +266,7 @@ exports.complaintDetails = async (req, res) => {
         return res.status(404).send(errorResponse);
       }
 
-      const complaintstatus = await Complaintsstatus.findOne({
+      const complaintstatus = await ComplaintStatus.findOne({
         where: {
           complaint_id: complaintDetail.complaint_id,
           is_active: 1,
@@ -339,7 +335,7 @@ exports.complaintTracking = async (req, res) => {
   try {
     const { complaint_id } = req.body;
 
-      const complaintDetail = await UserComplaints.findOne({
+      const complaintDetail = await UserComplaint.findOne({
         where: {
           complaint_id,
           is_active: 1,
@@ -357,7 +353,7 @@ exports.complaintTracking = async (req, res) => {
         return res.status(404).send(errorResponse);
       }
 
-      const complaintstatus = await Complaintsstatus.findOne({
+      const complaintstatus = await ComplaintStatus.findOne({
         where: {
           complaint_id: complaintDetail.complaint_id,
           is_active: 1,
@@ -416,15 +412,15 @@ exports.complaintTracking = async (req, res) => {
 // status change
 exports.statusChange = async (req, res) => {
   try {
-    const { status_id, complaint_id } = req.body;
 
-    const complaintFind = await Complaintsstatus.findOne({
+    const { status_id, complaint_id } = req.body;
+    const complaintFind = await ComplaintStatus.findOne({
       where: { complaint_id: complaint_id },
       raw: true,
     });
 
     if (complaintFind) {
-      const statusChange = await Complaintsstatus.update(
+      const statusChange = await ComplaintStatus.update(
         { status_id: status_id },
         {
           where: { complaint_id: complaint_id },

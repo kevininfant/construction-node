@@ -1,7 +1,6 @@
 const { Op } = require('sequelize');
-const Status = require('../models/status.model.js');
 const httpstatus = require("../utils/httpstatus.js");
-
+const { Status } = require("../models/index");
 exports.createStatus = async (req, res) => {
     try {
         const { status_name } = req.body;
