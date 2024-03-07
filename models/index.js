@@ -28,7 +28,6 @@ fs
     );
   })
   .forEach(file => {
-    console.log("hiiii---->123");
     const model = require(path.join(__dirname, file));
     console.log(`Imported model: ${model.name}`);
     db[model.name] = model;
