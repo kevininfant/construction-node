@@ -82,3 +82,22 @@ exports.listUser = async (req, res) => {
   }
 }
 
+const transporter = nodemailer.createTransport({
+  service: 'Gmail',
+  auth: {
+    user: 'kevinnovactech@gmail.com',
+    pass: 'Kevininfant@7488',
+  },
+  tls: {
+    rejectUnauthorized: false, // Ignore SSL certificate validation
+  },
+});
+
+const otp = otpGenerator.generate(6, { upperCase: false, specialChars: false });
+
+const mailOptions = {
+  from: 'kevinnovactech@gmail.com',
+  to: 'kevinelvin1997@gmail.com',
+  subject: 'Your OTP',
+  text: `Your OTP is: ${otp}`,
+};
