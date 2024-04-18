@@ -56,7 +56,12 @@ const passwordMatch = await bcrypt.compare(password, user.password);
 if (!passwordMatch) {
   return res.status(401).json({ message: 'Authentication failed: Invalid password' });
 }
-const Otp = emailOtp{}
+const Otp = transporter.sendMail(mailOptions, (error, info) => {
+  if (error) {
+    return console.log(error);
+  }
+  console.log('Message sent: %s', info.messageId);
+});
 if(Otp){
 const token = jwt.sign({ userId: user.id },secretKey, {
   expiresIn: '1h', // Set the token expiration time as needed
