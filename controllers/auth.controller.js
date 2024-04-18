@@ -56,11 +56,13 @@ const passwordMatch = await bcrypt.compare(password, user.password);
 if (!passwordMatch) {
   return res.status(401).json({ message: 'Authentication failed: Invalid password' });
 }
+const Otp = emailOtp{}
+if(Otp){
 const token = jwt.sign({ userId: user.id },secretKey, {
   expiresIn: '1h', // Set the token expiration time as needed
 });
 return res.status(201).json({message: 'User created successfully', token: token})
-  } catch (error) {
+  } }catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Internal Server Error' });
   }
