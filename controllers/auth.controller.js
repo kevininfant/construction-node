@@ -2,13 +2,11 @@ const { Op } = require('sequelize');
 const { User } = require("../models/index");
 const sequelize = require('../config/sequelize');
 const httpstatus = require("../utils/httpstatus");
-const bcrypt = require('bcrypt');
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-// const nodemailer = require('nodemailer');
-// const otpGenerator = require('otp-generator');
 require("dotenv").config();
 const secretKey = process.env.SECRET_KEY;
-User
+const refreshSecret = process.env.REFRESH_SECRET || 'refresh_secret_construction_2024';
 // create-admin
 exports.createUser = async (req, res) => {
   try {
@@ -71,15 +69,52 @@ exports.login = async (req, res) => {
       // });
 
     }
-    const token = jwt.sign({ userId: user.id }, secretKey, {
-      expiresIn: '1h', // Set the token expiration time as needed
+    const token = jwt.sign({ userId: user.id }, secretKey, { expiresIn: '8h' });
+    const refreshToken = jwt.sign({ userId: user.id }, refreshSecret, { expiresIn: '7d' });
+    let successResponse = httpstatus.successResponse({
+      message: 'User Login successfully',
+      token,
+      refreshToken,
+      userDetails: { id: user.id, name: user.name, email: user.email, user_type: user.user_type },
     });
-    return res.status(201).json({ message: 'User Login successfully', token: token ,user_type : user.user_type})
+    return res.status(200).send(successResponse);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: 'Internal Server Error' });
   }
 }
+
+// refresh token
+exports.refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(401).json({ message: 'Refresh token required' });
+    const decoded = jwt.verify(refreshToken, refreshSecret);
+    const user = await User.findOne({ where: { id: decoded.userId } });
+    if (!user) return res.status(401).json({ message: 'User not found' });
+    const newToken = jwt.sign({ userId: user.id }, secretKey, { expiresIn: '8h' });
+    return res.status(200).send(httpstatus.successResponse({ token: newToken, message: 'Token refreshed' }));
+  } catch (error) {
+    return res.status(401).json({ message: 'Invalid or expired refresh token' });
+  }
+};
+
+// change password
+exports.changePassword = async (req, res) => {
+  try {
+    const { user_id, current_password, new_password } = req.body;
+    const user = await User.findOne({ where: { id: user_id } });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    const match = await bcrypt.compare(current_password, user.password);
+    if (!match) return res.status(401).json({ message: 'Current password is incorrect' });
+    const hashed = await bcrypt.hash(new_password, 10);
+    await User.update({ password: hashed }, { where: { id: user_id } });
+    return res.status(200).send(httpstatus.successResponse({ error_code: 0, message: 'Password changed successfully' }));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
 
 // list- admins
 exports.listUser = async (req, res) => {

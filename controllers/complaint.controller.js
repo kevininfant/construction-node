@@ -1,463 +1,297 @@
-const Sequelize = require('sequelize');
-const {User,AssignComplaints,UserComplaint,Status,ComplaintStatus} = require("../models/index");
-const httpstatus = require("../utils/httpstatus");
-require("dotenv").config();
-// create-complaints
-exports.UserComplaintsCreate = async (req, res) => {
-    const defaultStatus = "process";
-    console.log("req.body",req.body);
-    try {
-      const {
-        name,
-        email,
-        mobile,
-        address,
-        user_type,
-        complaint_type,
-        complaintDetails,
-      } = req.body;
-  
-      const newComplaint = await UserComplaint.create({
-        name,
-        email,
-        mobile,
-        address,
-        user_type,
-        complaint_type,
-        complaintDetails,
-      });
-  
-      if (!newComplaint) {
-        let errorResponse = httpstatus.errorResponse({
-          error_code: 1,
-          message: "Failed to create complaint",
-        });
-  
-        return res.status(500).send(errorResponse);
-      }
-  
-      const complaint_id = newComplaint.complaint_id;
-  
-      // Fetch the status_id for the default status
-      const status = await Status.findOne({
-        where: { status_name: defaultStatus },
-        raw: true,
-      });
-  
-      // Check if status is defined and has status_id
-      if (!status || !status.status_id) {
-        throw new Error("Failed to fetch status");
-      }
-      try {
-        const newStatus = await ComplaintStatus.create({
-          complaint_id,
-          status_id: status.status_id,
-          is_active: 1,
-        });
-  
-        // Check if newStatus is defined
-        if (!newStatus) {
-          throw new Error("Failed to create complaint status");
-        }
-  
-        let successResponse = httpstatus.successResponse({
-          error_code: 0,
-          message: "Complaint created successfully",
-          trackingId : complaint_id
-        });
-  
-        return res.status(201).send(successResponse);
-      } catch (error) {
-        console.error(error);
-        let errorResponse = httpstatus.errorResponse({
-          error_code: 1,
-          message: "Failed to create complaint status",
-        });
-  
-        return res.status(500).send(errorResponse);
-      }
-    } catch (error) {
-      console.error(error);
-      return res
-        .status(500)
-        .json({ message: "Internal Server Error", error: error.message });
-    }
-  };
-  
-  
+const { Op } = require('sequelize');
+const { User, AssignComplaints, UserComplaint, Status, ComplaintStatus } = require('../models/index');
+const httpstatus = require('../utils/httpstatus');
+const { sendStatusUpdateEmail, sendComplaintConfirmEmail } = require('../utils/mailer');
+require('dotenv').config();
 
-// List-complaints
+// ── helpers ──────────────────────────────────────────────────────────────────
+const buildComplaintObj = (complaintData, complaintstatus, statusType) => ({
+  complaint_id: complaintData.complaint_id,
+  name: complaintData.name,
+  email: complaintData.email,
+  mobile: complaintData.mobile,
+  address: complaintData.address,
+  user_type: complaintData.user_type,
+  complaint_type: complaintData.complaint_type,
+  complaintDetails: complaintData.complaintDetails,
+  image_proof: complaintData.image_proof || null,
+  status_id: complaintstatus.status_id,
+  status_type: statusType.status_name,
+  is_active: complaintData.is_active,
+  createdAt: complaintData.createdAt,
+});
+
+// ── create complaint ──────────────────────────────────────────────────────────
+exports.UserComplaintsCreate = async (req, res) => {
+  const defaultStatus = 'process';
+  try {
+    const { name, email, mobile, address, user_type, complaint_type, complaintDetails } = req.body;
+    const image_proof = req.file ? req.file.filename : null;
+
+    const newComplaint = await UserComplaint.create({
+      name, email, mobile, address, user_type, complaint_type, complaintDetails, image_proof,
+    });
+    if (!newComplaint) return res.status(500).send(httpstatus.errorResponse({ error_code: 1, message: 'Failed to create complaint' }));
+
+    const complaint_id = newComplaint.complaint_id;
+    const status = await Status.findOne({ where: { status_name: defaultStatus }, raw: true });
+    if (!status?.status_id) throw new Error('Failed to fetch status');
+
+    await ComplaintStatus.create({ complaint_id, status_id: status.status_id, is_active: 1 });
+
+    // send confirmation email (non-blocking)
+    sendComplaintConfirmEmail({ to: email, name, trackingId: complaint_id });
+
+    return res.status(201).send(httpstatus.successResponse({ error_code: 0, message: 'Complaint created successfully', trackingId: complaint_id }));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+};
+
+// ── list complaints ───────────────────────────────────────────────────────────
 exports.listComplaint = async (req, res) => {
   try {
-    const { user_type,user_id } = req.body;
-    if (user_type === "superadmin" || user_type === "subadmin") {
-      let complaintList;
-      if (user_type === "subadmin") {
-        const complaintAssign = await AssignComplaints.findAll({
-          where: {
-            user_id: user_id,
-            is_active: 1,
-          },
-          raw: true,
-        });
-        const complaintIds = complaintAssign.map(assign => assign.complaint_id);
-        complaintList = await UserComplaint.findAll({
-          where: {
-            complaint_id: complaintIds,
-            is_active: 1,
-          },
-          raw: true,
-        });
-      } else {
-        complaintList = await UserComplaint.findAll({
-          where: {
-            is_active: 1,
-          },
-          raw: true,
-        });
-      }
+    const { user_type, user_id } = req.body;
+    if (user_type !== 'superadmin' && user_type !== 'subadmin')
+      return res.status(403).send(httpstatus.errorResponse({ error_code: 1, message: 'Not authorized' }));
 
-      const complaintArr = [];
-      for (const complaintData of complaintList) {
-        try {
-          let complaintstatus = await ComplaintStatus.findOne({
-            where: {
-              complaint_id: complaintData.complaint_id,
-              is_active: 1,
-            },
-            raw: true,
-          });
-
-          if (!complaintstatus) {
-            throw new Error("Complaint status not found");
-          }
-
-          const statusType = await Status.findOne({
-            where: {
-              status_id: complaintstatus.status_id,
-              is_active: 1,
-            },
-            raw: true,
-          });
-
-          complaintArr.push({
-            complaint_id: complaintData.complaint_id,
-            name: complaintData.name,
-            email: complaintData.email,
-            mobile: complaintData.mobile,
-            address: complaintData.address,
-            user_type: complaintData.user_type,
-            complent_type: complaintData.complent_type,
-            complentDetails: complaintData.complentDetails,
-            status_id: complaintstatus.status_id,
-            status_type: statusType.status_name,
-            is_active: complaintData.is_active,
-          });
-        } catch (error) {
-          console.error("Error fetching complaint status:", error.message);
-        }
-      }
-
-      let successResponse = httpstatus.successResponse({
-        error_code: 0,
-        complaintList: complaintArr,
-        message: "ComplaintList fetch successfully",
-      });
-
-      return res.status(200).send(successResponse);
+    let complaintList;
+    if (user_type === 'subadmin') {
+      const assigned = await AssignComplaints.findAll({ where: { user_id, is_active: 1 }, raw: true });
+      const ids = assigned.map(a => a.complaint_id);
+      complaintList = await UserComplaint.findAll({ where: { complaint_id: ids, is_active: 1 }, raw: true });
     } else {
-      let errorResponse = httpstatus.errorResponse({
-        error_code: 1,
-        message: "Sorry, you are not an authorized person.",
-      });
-
-      return res.status(403).send(errorResponse);
+      complaintList = await UserComplaint.findAll({ where: { is_active: 1 }, raw: true });
     }
+
+    const complaintArr = [];
+    for (const c of complaintList) {
+      try {
+        const cs = await ComplaintStatus.findOne({ where: { complaint_id: c.complaint_id, is_active: 1 }, raw: true });
+        if (!cs) continue;
+        const st = await Status.findOne({ where: { status_id: cs.status_id, is_active: 1 }, raw: true });
+        complaintArr.push(buildComplaintObj(c, cs, st));
+      } catch {}
+    }
+
+    return res.status(200).send(httpstatus.successResponse({ error_code: 0, complaintList: complaintArr, message: 'Fetched successfully' }));
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 };
 
-
-// assign-complaint
-exports.AssignComplaints = async (req, res) => {
+// ── dashboard stats ───────────────────────────────────────────────────────────
+exports.dashboardStats = async (req, res) => {
   try {
-    const { complaint_id, user_id, user_type } = req.body;
+    const { user_type, user_id } = req.body;
+    if (user_type !== 'superadmin' && user_type !== 'subadmin')
+      return res.status(403).send(httpstatus.errorResponse({ error_code: 1, message: 'Not authorized' }));
 
-    if (user_type === "superadmin") {
-      // Check if the complaint is already assigned
-      const existingAssignment = await AssignComplaints.findOne({
-        where: {
-          complaint_id: complaint_id,
-          user_id: user_id,
-        },
-        raw: true,
-      });
-
-      if (existingAssignment) {
-        const errorResponse = {
-          error_code: 1,
-          message: "Complaint is already assigned to the user.",
-        };
-        return res.status(400).json(errorResponse);
-      }
-
-      // If not assigned, create a new assignment
-      const complaintsAssignStatus = await AssignComplaints.create({
-        complaint_id: complaint_id,
-        user_id: user_id,
-      });
-
-      if (complaintsAssignStatus) {
-        const successResponse = {
-          error_code: 0,
-          message: "Complaint assigned successfully",
-          data: complaintsAssignStatus, // Optionally, you can send the created record back to the client.
-        };
-        return res.status(200).json(successResponse);
-      } else {
-        const errorResponse = {
-          error_code: 1,
-          message: "Failed to assign complaint. There was an issue with the assignment.",
-        };
-        return res.status(403).json(errorResponse);
-      }
+    let complaintList;
+    if (user_type === 'subadmin') {
+      const assigned = await AssignComplaints.findAll({ where: { user_id, is_active: 1 }, raw: true });
+      const ids = assigned.map(a => a.complaint_id);
+      complaintList = await UserComplaint.findAll({ where: { complaint_id: ids, is_active: 1 }, raw: true });
     } else {
-      const errorResponse = {
-        error_code: 1,
-        message: "Sorry, you are not an authorized person.",
-      };
-      return res.status(403).json(errorResponse);
+      complaintList = await UserComplaint.findAll({ where: { is_active: 1 }, raw: true });
     }
+
+    const stats = { total: 0, process: 0, resolved: 0, closed: 0 };
+    for (const c of complaintList) {
+      const cs = await ComplaintStatus.findOne({ where: { complaint_id: c.complaint_id, is_active: 1 }, raw: true });
+      if (!cs) continue;
+      const st = await Status.findOne({ where: { status_id: cs.status_id }, raw: true });
+      stats.total++;
+      if (st?.status_name === 'process') stats.process++;
+      else if (st?.status_name === 'resolved') stats.resolved++;
+      else if (st?.status_name === 'closed') stats.closed++;
+    }
+
+    return res.status(200).send(httpstatus.successResponse({ error_code: 0, stats, message: 'Stats fetched' }));
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error_code: 1, message: "Internal Server Error", error: error.message });
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 };
 
-
-
-
-// Complaint-Details
-
+// ── complaint detail ──────────────────────────────────────────────────────────
 exports.complaintDetails = async (req, res) => {
   try {
     const { complaint_id, user_type } = req.body;
+    if (user_type !== 'superadmin' && user_type !== 'subadmin')
+      return res.status(403).send(httpstatus.errorResponse({ error_code: 1, message: 'Not authorized' }));
 
-    if (user_type === "superadmin" || user_type === "subadmin") {
-      const complaintDetail = await UserComplaint.findOne({
-        where: {
-          complaint_id,
-          is_active: 1,
-        },
-        raw: true,
-      });
+    const c = await UserComplaint.findOne({ where: { complaint_id, is_active: 1 }, raw: true });
+    if (!c) return res.status(404).send(httpstatus.errorResponse({ error_code: 1, message: 'Complaint not found' }));
 
-      if (!complaintDetail) {
-        // Handle case when complaint is not found
-        let errorResponse = httpstatus.errorResponse({
-          error_code: 1,
-          message: "Complaint not found",
-        });
+    const cs = await ComplaintStatus.findOne({ where: { complaint_id, is_active: 1 }, raw: true });
+    if (!cs) return res.status(404).send(httpstatus.errorResponse({ error_code: 1, message: 'Status not found' }));
 
-        return res.status(404).send(errorResponse);
-      }
+    const st = await Status.findOne({ where: { status_id: cs.status_id, is_active: 1 }, raw: true });
 
-      const complaintstatus = await ComplaintStatus.findOne({
-        where: {
-          complaint_id: complaintDetail.complaint_id,
-          is_active: 1,
-        },
-        raw: true,
-      });
-
-      if (!complaintstatus) {
-        // Handle case when complaint status is not found
-        let errorResponse = httpstatus.errorResponse({
-          error_code: 1,
-          message: "Complaint status not found",
-        });
-
-        return res.status(404).send(errorResponse);
-      }
-
-      const statusType = await Status.findOne({
-        where: {
-          status_id: complaintstatus.status_id,
-          is_active: 1,
-        },
-        raw: true,
-      });
-
-      const complaintObj = {
-        complaint_id: complaintDetail.complaint_id,
-        name: complaintDetail.name,
-        email: complaintDetail.email,
-        mobile: complaintDetail.mobile,
-        address: complaintDetail.address,
-        user_type: complaintDetail.user_type,
-        complent_type: complaintDetail.complent_type,
-        complentDetails: complaintDetail.complentDetails,
-        status_id: complaintstatus.status_id,
-        status_type: statusType.status_name,
-        is_active: complaintDetail.is_active,
-      };
-
-      let successResponse = httpstatus.successResponse({
-        error_code: 0,
-        complaintDetail: complaintObj,
-        message: "Complaint details fetched successfully",
-      });
-
-      return res.status(200).send(successResponse);
-    } else {
-      let errorResponse = httpstatus.errorResponse({
-        error_code: 1,
-        message: "Sorry, you are not an authorized person.",
-      });
-
-      return res.status(403).send(errorResponse);
-    }
+    return res.status(200).send(httpstatus.successResponse({ error_code: 0, complaintDetail: buildComplaintObj(c, cs, st), message: 'Fetched successfully' }));
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 };
 
-// track-complaints
-
+// ── track complaint (public) ──────────────────────────────────────────────────
 exports.complaintTracking = async (req, res) => {
   try {
     const { complaint_id } = req.body;
+    const c = await UserComplaint.findOne({ where: { complaint_id, is_active: 1 }, raw: true });
+    if (!c) return res.status(404).send(httpstatus.errorResponse({ error_code: 1, message: 'Complaint not found' }));
 
-      const complaintDetail = await UserComplaint.findOne({
-        where: {
-          complaint_id,
-          is_active: 1,
-        },
-        raw: true,
-      });
+    const cs = await ComplaintStatus.findOne({ where: { complaint_id, is_active: 1 }, raw: true });
+    if (!cs) return res.status(404).send(httpstatus.errorResponse({ error_code: 1, message: 'Status not found' }));
 
-      if (!complaintDetail) {
-        // Handle case when complaint is not found
-        let errorResponse = httpstatus.errorResponse({
-          error_code: 1,
-          message: "Complaint not found",
-        });
+    const st = await Status.findOne({ where: { status_id: cs.status_id, is_active: 1 }, raw: true });
 
-        return res.status(404).send(errorResponse);
-      }
-
-      const complaintstatus = await ComplaintStatus.findOne({
-        where: {
-          complaint_id: complaintDetail.complaint_id,
-          is_active: 1,
-        },
-        raw: true,
-      });
-
-      if (!complaintstatus) {
-        // Handle case when complaint status is not found
-        let errorResponse = httpstatus.errorResponse({
-          error_code: 1,
-          message: "Complaint status not found",
-        });
-
-        return res.status(404).send(errorResponse);
-      }
-
-      const statusType = await Status.findOne({
-        where: {
-          status_id: complaintstatus.status_id,
-          is_active: 1,
-        },
-        raw: true,
-      });
-
-      const complaintObj = {
-        complaint_id: complaintDetail.complaint_id,
-        name: complaintDetail.name,
-        email: complaintDetail.email,
-        mobile: complaintDetail.mobile,
-        address: complaintDetail.address,
-        user_type: complaintDetail.user_type,
-        complent_type: complaintDetail.complent_type,
-        complentDetails: complaintDetail.complentDetails,
-        status_id: complaintstatus.status_id,
-        status_type: statusType.status_name,
-        is_active: complaintDetail.is_active,
-      };
-
-      let successResponse = httpstatus.successResponse({
-        error_code: 0,
-        complaintDetail: complaintObj,
-        message: "Complaint details fetched successfully",
-      });
-
-      return res.status(200).send(successResponse);
-   
+    return res.status(200).send(httpstatus.successResponse({ error_code: 0, complaintDetail: buildComplaintObj(c, cs, st), message: 'Fetched successfully' }));
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ message: "Internal Server Error", error: error.message });
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 };
 
-// status change
+// ── status change ─────────────────────────────────────────────────────────────
 exports.statusChange = async (req, res) => {
   try {
-
     const { status_id, complaint_id } = req.body;
-    const complaintFind = await ComplaintStatus.findOne({
-      where: { complaint_id: complaint_id },
-      raw: true,
-    });
+    const found = await ComplaintStatus.findOne({ where: { complaint_id }, raw: true });
+    if (!found) return res.status(404).send(httpstatus.errorResponse({ error_code: 1, message: 'Complaint not found' }));
 
-    if (complaintFind) {
-      const statusChange = await ComplaintStatus.update(
-        { status_id: status_id },
-        {
-          where: { complaint_id: complaint_id },
-          raw: true,
-        }
-      );
+    const [updated] = await ComplaintStatus.update({ status_id }, { where: { complaint_id } });
+    if (!updated) return res.status(404).send(httpstatus.errorResponse({ error_code: 1, message: 'Status unchanged' }));
 
-      if (statusChange && statusChange[0] > 0) {
-        // Update successful
-        let successResponse = httpstatus.successResponse({
-          error_code: 0,
-          message: 'Status changed successfully',
-        });
+    // send email notification (non-blocking)
+    const c = await UserComplaint.findOne({ where: { complaint_id }, raw: true });
+    const st = await Status.findOne({ where: { status_id }, raw: true });
+    if (c && st) sendStatusUpdateEmail({ to: c.email, name: c.name, trackingId: complaint_id, status: st.status_name });
 
-        return res.status(200).send(successResponse);
-      } else {
-        // No rows updated, possibly the complaint_id was not found
-        let errorResponse = httpstatus.errorResponse({
-          error_code: 1,
-          message: 'Complaint not found or status unchanged',
-        });
-
-        return res.status(404).send(errorResponse);
-      }
-    } else {
-      // Complaint not found
-      let errorResponse = httpstatus.errorResponse({
-        error_code: 1,
-        message: 'Complaint not found',
-      });
-
-      return res.status(404).send(errorResponse);
-    }
+    return res.status(200).send(httpstatus.successResponse({ error_code: 0, message: 'Status changed successfully' }));
   } catch (error) {
     console.error(error);
-    return res
-      .status(500)
-      .json({ message: 'Internal Server Error', error: error.message });
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+};
+
+// ── update complaint ──────────────────────────────────────────────────────────
+exports.updateComplaint = async (req, res) => {
+  try {
+    const { complaint_id, user_type, name, email, mobile, address, complaint_type, complaintDetails } = req.body;
+    if (user_type !== 'superadmin') return res.status(403).send(httpstatus.errorResponse({ error_code: 1, message: 'Not authorized' }));
+
+    const [updated] = await UserComplaint.update(
+      { name, email, mobile, address, complaint_type, complaintDetails },
+      { where: { complaint_id, is_active: 1 } }
+    );
+    if (!updated) return res.status(404).send(httpstatus.errorResponse({ error_code: 1, message: 'Complaint not found' }));
+
+    return res.status(200).send(httpstatus.successResponse({ error_code: 0, message: 'Complaint updated successfully' }));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+};
+
+// ── delete complaint (soft) ───────────────────────────────────────────────────
+exports.deleteComplaint = async (req, res) => {
+  try {
+    const { complaint_id, user_type } = req.body;
+    if (user_type !== 'superadmin') return res.status(403).send(httpstatus.errorResponse({ error_code: 1, message: 'Not authorized' }));
+
+    const [updated] = await UserComplaint.update({ is_active: 0 }, { where: { complaint_id } });
+    if (!updated) return res.status(404).send(httpstatus.errorResponse({ error_code: 1, message: 'Complaint not found' }));
+
+    return res.status(200).send(httpstatus.successResponse({ error_code: 0, message: 'Complaint deleted successfully' }));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+};
+
+// ── assign complaint ──────────────────────────────────────────────────────────
+exports.AssignComplaints = async (req, res) => {
+  try {
+    const { complaint_id, user_id, user_type } = req.body;
+    if (user_type !== 'superadmin') return res.status(403).json({ error_code: 1, message: 'Not authorized' });
+
+    const existing = await AssignComplaints.findOne({ where: { complaint_id, user_id }, raw: true });
+    if (existing) return res.status(400).json({ error_code: 1, message: 'Already assigned to this user' });
+
+    const result = await AssignComplaints.create({ complaint_id, user_id });
+    return res.status(200).json({ error_code: 0, message: 'Assigned successfully', data: result });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error_code: 1, message: 'Internal Server Error', error: error.message });
+  }
+};
+
+// ── export complaints as CSV data ─────────────────────────────────────────────
+exports.exportComplaints = async (req, res) => {
+  try {
+    const { user_type, user_id } = req.body;
+    if (user_type !== 'superadmin' && user_type !== 'subadmin')
+      return res.status(403).send(httpstatus.errorResponse({ error_code: 1, message: 'Not authorized' }));
+
+    let complaintList;
+    if (user_type === 'subadmin') {
+      const assigned = await AssignComplaints.findAll({ where: { user_id, is_active: 1 }, raw: true });
+      const ids = assigned.map(a => a.complaint_id);
+      complaintList = await UserComplaint.findAll({ where: { complaint_id: ids, is_active: 1 }, raw: true });
+    } else {
+      complaintList = await UserComplaint.findAll({ where: { is_active: 1 }, raw: true });
+    }
+
+    const rows = [];
+    for (const c of complaintList) {
+      const cs = await ComplaintStatus.findOne({ where: { complaint_id: c.complaint_id, is_active: 1 }, raw: true });
+      const st = cs ? await Status.findOne({ where: { status_id: cs.status_id }, raw: true }) : null;
+      rows.push({
+        complaint_id: c.complaint_id,
+        name: c.name,
+        email: c.email,
+        mobile: c.mobile,
+        address: c.address,
+        complaint_type: c.complaint_type,
+        complaintDetails: c.complaintDetails,
+        status: st?.status_name || 'unknown',
+        createdAt: c.createdAt,
+      });
+    }
+
+    return res.status(200).send(httpstatus.successResponse({ error_code: 0, exportData: rows, message: 'Export data ready' }));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+};
+
+// ── complaint history by email/mobile (public) ────────────────────────────────
+exports.complaintHistory = async (req, res) => {
+  try {
+    const { email, mobile } = req.body;
+    if (!email && !mobile) return res.status(400).send(httpstatus.errorResponse({ error_code: 1, message: 'Email or mobile required' }));
+
+    const where = { is_active: 1 };
+    if (email) where.email = email;
+    else where.mobile = mobile;
+
+    const complaints = await UserComplaint.findAll({ where, raw: true });
+    const result = [];
+    for (const c of complaints) {
+      const cs = await ComplaintStatus.findOne({ where: { complaint_id: c.complaint_id, is_active: 1 }, raw: true });
+      const st = cs ? await Status.findOne({ where: { status_id: cs.status_id }, raw: true }) : null;
+      result.push(buildComplaintObj(c, cs || { status_id: 1 }, st || { status_name: 'process' }));
+    }
+
+    return res.status(200).send(httpstatus.successResponse({ error_code: 0, complaints: result, message: 'History fetched' }));
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 };
