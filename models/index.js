@@ -7,9 +7,8 @@ const process = require('process');
 require("dotenv").config();
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
-const config = require("../config/config.js")[env];
+const config = require("../config/config.js")['development'];
 const db = {};
-console.log("config",config);
 let sequelize;
 // if (config.use_env_variable) {
 //   sequelize = new Sequelize(process.env[config.use_env_variable], config);
@@ -29,7 +28,6 @@ fs
   })
   .forEach(file => {
     const model = require(path.join(__dirname, file));
-    console.log(`Imported model: ${model.name}`);
     db[model.name] = model;
   });
 
